@@ -180,11 +180,17 @@
 
   #reader{
     width:100%;
+    height:clamp(110px, 38vw, 190px);
     border-radius:12px;
     overflow:hidden;
     margin-top:14px;
     display:none;
     border:2px solid var(--accent);
+  }
+  #reader video, #reader canvas{
+    width:100% !important;
+    height:100% !important;
+    object-fit:cover;
   }
 
   .divider{
@@ -579,10 +585,10 @@ scanBtn.addEventListener('click', async () => {
 
   html5QrCode = new Html5Qrcode("reader");
 
-  // 商品バーコードは横長なので、カメラ映像の幅に対して低めの帯状の枠にする
+  // 白いスキャン枠は、オレンジ枠(カメラ映像)の高さの2/3、幅はほぼ全幅にする
   const qrboxFunction = (viewfinderWidth, viewfinderHeight) => {
-    const w = Math.floor(Math.min(viewfinderWidth * 0.85, 340));
-    const h = Math.floor(w * 0.5);
+    const h = Math.floor(viewfinderHeight * 0.66);
+    const w = Math.floor(Math.min(viewfinderWidth * 0.9, viewfinderWidth - 16));
     return { width: w, height: h };
   };
 
