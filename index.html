@@ -582,7 +582,7 @@ scanBtn.addEventListener('click', async () => {
   // 商品バーコードは横長なので、カメラ映像の幅に対して低めの帯状の枠にする
   const qrboxFunction = (viewfinderWidth, viewfinderHeight) => {
     const w = Math.floor(Math.min(viewfinderWidth * 0.85, 340));
-    const h = Math.floor(w * 0.32);
+    const h = Math.floor(w * 0.5);
     return { width: w, height: h };
   };
 
