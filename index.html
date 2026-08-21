@@ -281,6 +281,17 @@
   .tag.notfound{border-color:var(--bad);}
   .tag.found{border-color:var(--accent);}
 
+  @keyframes tagFlash{
+    0%{background-color:var(--accent-soft);transform:scale(1.015);}
+    100%{background-color:var(--panel-2);transform:scale(1);}
+  }
+  .tag.flash{animation:tagFlash 0.5s ease-out;}
+  .tag.notfound.flash{animation-name:tagFlashBad;}
+  @keyframes tagFlashBad{
+    0%{background-color:var(--bad-soft);transform:scale(1.015);}
+    100%{background-color:var(--panel-2);transform:scale(1);}
+  }
+
   footer{
     text-align:center;
     font-family:var(--font-mono);
@@ -518,6 +529,7 @@ fileInput.addEventListener('change', (e) => {
 
 function showResult(jan){
   const hit = productMap[jan];
+  const timeStr = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   if(hit){
     resultDiv.classList.remove('notfound');
     resultDiv.classList.add('found');
@@ -525,7 +537,7 @@ function showResult(jan){
       <div class="shelf-label">shelf no.</div>
       <div class="shelf">${escapeHtml(hit.shelf)}</div>
       <div class="name">${escapeHtml(hit.name)}</div>
-      <div class="jan">JAN ${escapeHtml(jan)}</div>
+      <div class="jan">JAN ${escapeHtml(jan)} ・ ${timeStr}</div>
     `;
   }else{
     resultDiv.classList.remove('found');
@@ -533,9 +545,13 @@ function showResult(jan){
     resultDiv.innerHTML = `
       <div class="shelf-label">not found</div>
       <div class="shelf">見つかりません</div>
-      <div class="jan">JAN ${escapeHtml(jan)}</div>
+      <div class="jan">JAN ${escapeHtml(jan)} ・ ${timeStr}</div>
     `;
   }
+  // 更新されたことがひと目でわかるように、毎回フラッシュアニメーションを再生する
+  resultDiv.classList.remove('flash');
+  void resultDiv.offsetWidth; // reflow でアニメーションを再始動させる
+  resultDiv.classList.add('flash');
   if(navigator.vibrate) navigator.vibrate(60);
 }
 
@@ -562,13 +578,50 @@ scanBtn.addEventListener('click', async () => {
   scanning = true;
 
   html5QrCode = new Html5Qrcode("reader");
-  const config = { fps: 10, qrbox: { width: 260, height: 140 } };
+
+  // 商品バーコードは横長なので、カメラ映像の幅に対して低めの帯状の枠にする
+  const qrboxFunction = (viewfinderWidth, viewfinderHeight) => {
+    const w = Math.floor(Math.min(viewfinderWidth * 0.85, 340));
+    const h = Math.floor(w * 0.32);
+    return { width: w, height: h };
+  };
+
+  const config = {
+    fps: 12,
+    qrbox: qrboxFunction,
+    // JANコード(EAN-13/EAN-8)を含むバーコード系フォーマットに絞ることで、
+    // 認識対象が減り、特にiPhoneでの読み取り成功率が上がる
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.ITF,
+    ],
+    videoConstraints: {
+      facingMode: "environment",
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    }
+  };
+
+  let lastJan = null;
+  let lastScanAt = 0;
+
   try{
     await html5QrCode.start(
       { facingMode: "environment" },
       config,
       (decodedText) => {
         const jan = normalizeJan(decodedText);
+        const now = Date.now();
+        // 同じコードを連続で読み続けているだけの場合は無視し、
+        // 別のコード・または一定時間後の再読み取りだけを反映する
+        if(jan === lastJan && (now - lastScanAt) < 1500) return;
+        lastJan = jan;
+        lastScanAt = now;
         showResult(jan);
       },
       () => {}
