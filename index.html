@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>棚番号検索</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#12161c;
+    --bg-grid: rgba(255,255,255,0.035);
+    --panel:#1b212a;
+    --panel-2:#232b36;
+    --border:#323c49;
+    --text:#eef2f6;
+    --muted:#8b96a5;
+    --accent:#ff8a3d;
+    --accent-soft:rgba(255,138,61,0.14);
+    --accent-ink:#2a1608;
+    --good:#3ddc84;
+    --good-soft:rgba(61,220,132,0.14);
+    --bad:#ff5468;
+    --bad-soft:rgba(255,84,104,0.14);
+    --radius:16px;
+    --font-display:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --font-body:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(255,138,61,0.08), transparent 45%),
+      repeating-linear-gradient(0deg, var(--bg-grid) 0, var(--bg-grid) 1px, transparent 1px, transparent 28px),
+      repeating-linear-gradient(90deg, var(--bg-grid) 0, var(--bg-grid) 1px, transparent 1px, transparent 28px),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100vh;
+    padding:18px 16px 40px;
+  }
+  .wrap{max-width:520px;margin:0 auto;}
+
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:20px;
+    padding-bottom:14px;
+    border-bottom:2px dashed var(--border);
+  }
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand .eyebrow{
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    color:var(--accent);
+    text-transform:uppercase;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-size:23px;
+    font-weight:700;
+    letter-spacing:0.01em;
+    margin:0;
+  }
+  #status-pill{
+    font-family:var(--font-mono);
+    font-size:11px;
+    font-weight:700;
+    padding:6px 12px;
+    border-radius:999px;
+    background:var(--panel-2);
+    color:var(--muted);
+    border:1.5px solid var(--border);
+    white-space:nowrap;
+  }
+  #status-pill.loaded{color:var(--good);border-color:var(--good);background:var(--good-soft);}
+
+  .card{
+    position:relative;
+    background:var(--panel);
+    border:1.5px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .card-head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .step-num{
+    font-family:var(--font-mono);
+    font-size:12px;
+    font-weight:700;
+    color:var(--accent-ink);
+    background:var(--accent);
+    width:24px;
+    height:24px;
+    border-radius:7px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .card-head h2{
+    font-family:var(--font-display);
+    font-size:14px;
+    letter-spacing:0.02em;
+    color:var(--text);
+    margin:0;
+    font-weight:700;
+  }
+
+  .icon{width:18px;height:18px;flex-shrink:0;}
+
+  /* file upload */
+  .file-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+    width:100%;
+    padding:15px;
+    background:var(--panel-2);
+    border:1.5px dashed var(--border);
+    border-radius:11px;
+    color:var(--text);
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .file-btn:active{background:var(--accent-soft);border-color:var(--accent);}
+  input[type=file]{display:none;}
+  #load-info{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  #clear-row{margin-top:8px;}
+  #clear-link{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--bad);
+    text-decoration:none;
+    border-bottom:1px dashed var(--bad);
+    padding-bottom:1px;
+  }
+
+  /* scan / search */
+  #scan-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    width:100%;
+    padding:17px;
+    font-family:var(--font-display);
+    font-size:15.5px;
+    font-weight:700;
+    letter-spacing:0.01em;
+    border:none;
+    border-radius:12px;
+    background:var(--accent);
+    color:var(--accent-ink);
+    cursor:pointer;
+    box-shadow:0 4px 14px rgba(255,138,61,0.28);
+    transition:transform .1s, box-shadow .15s;
+  }
+  #scan-btn:active{transform:scale(0.98);}
+  #scan-btn:disabled{background:var(--panel-2);color:var(--muted);box-shadow:none;cursor:not-allowed;}
+  #scan-btn.scanning{background:var(--bad);color:#fff;box-shadow:0 4px 14px rgba(255,84,104,0.3);}
+
+  #reader{
+    width:100%;
+    border-radius:12px;
+    overflow:hidden;
+    margin-top:14px;
+    display:none;
+    border:2px solid var(--accent);
+  }
+
+  .divider{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:16px 0 12px;
+  }
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+  .divider span{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.1em;}
+
+  .manual-row{
+    display:flex;
+    gap:8px;
+  }
+  .manual-row input{
+    flex:1;
+    padding:13px 14px;
+    border-radius:10px;
+    border:1.5px solid var(--border);
+    background:var(--panel-2);
+    color:var(--text);
+    font-family:var(--font-mono);
+    font-size:15px;
+  }
+  .manual-row input:focus{outline:none;border-color:var(--accent);}
+  .manual-row button{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 18px;
+    border-radius:10px;
+    border:1.5px solid var(--accent);
+    background:var(--accent-soft);
+    color:var(--accent);
+    font-weight:700;
+    cursor:pointer;
+  }
+
+  /* result — styled like a warehouse tag / label */
+  .tag{
+    position:relative;
+    border:2px dashed var(--border);
+    border-radius:12px;
+    padding:26px 16px 20px;
+    text-align:center;
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.015) 0 10px, transparent 10px 20px),
+      var(--panel-2);
+  }
+  .tag::before,.tag::after{
+    content:'';
+    position:absolute;
+    top:50%;
+    width:16px;height:16px;
+    border-radius:50%;
+    background:var(--bg);
+    border:2px dashed var(--border);
+    transform:translateY(-50%);
+  }
+  .tag::before{left:-9px;}
+  .tag::after{right:-9px;}
+  .placeholder{color:var(--muted);font-size:13px;font-family:var(--font-mono);}
+  .shelf-label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    color:var(--accent);
+    text-transform:uppercase;
+    margin-bottom:6px;
+  }
+  .shelf{
+    font-family:var(--font-mono);
+    font-size:52px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    color:var(--text);
+    line-height:1.1;
+  }
+  .name{
+    margin-top:10px;
+    font-size:14.5px;
+    color:var(--text);
+    font-weight:600;
+  }
+  .jan{
+    margin-top:6px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--muted);
+  }
+  .tag.notfound .shelf-label{color:var(--bad);}
+  .tag.notfound .shelf{color:var(--bad);font-size:22px;}
+  .tag.notfound{border-color:var(--bad);}
+  .tag.found{border-color:var(--accent);}
+
+  footer{
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    color:var(--muted);
+    margin-top:22px;
+    letter-spacing:0.03em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow">warehouse tool</span>
+      <h1>棚番号検索</h1>
+    </div>
+    <span id="status-pill">未読込</span>
+  </header>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="step-num">1</span>
+      <h2>商品マスタを読み込む</h2>
+    </div>
+    <label class="file-btn" for="file-input">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      エクセルファイルを選択
+    </label>
+    <input type="file" id="file-input" accept=".xlsx,.xls">
+    <div id="load-info">JANコードと棚番号の列を含むエクセルを選んでください</div>
+    <div id="clear-row" style="display:none;">
+      <a href="#" id="clear-link">
+        <svg class="icon" style="width:13px;height:13px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        保存したデータを消去する
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="step-num">2</span>
+      <h2>スキャンして探す</h2>
+    </div>
+    <button id="scan-btn" disabled>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span id="scan-btn-label">カメラでバーコードをスキャン</span>
+    </button>
+    <div id="reader"></div>
+    <div class="divider"><span>または</span></div>
+    <div class="manual-row">
+      <input type="text" id="manual-input" inputmode="numeric" placeholder="JANコードを直接入力">
+      <button id="manual-btn">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="step-num">3</span>
+      <h2>結果</h2>
+    </div>
+    <div id="result" class="tag"><div class="placeholder">スキャンまたは入力すると、ここに棚番号が表示されます</div></div>
+  </div>
+
+  <footer>商品マスタはこの端末のブラウザ上でのみ処理されます</footer>
+</div>
+
+<script>
+let productMap = {}; // jan(string) -> {shelf, name}
+let itemCount = 0;
+let scanning = false;
+let html5QrCode = null;
+
+const statusPill = document.getElementById('status-pill');
+const loadInfo = document.getElementById('load-info');
+const fileInput = document.getElementById('file-input');
+const scanBtn = document.getElementById('scan-btn');
+const scanBtnLabel = document.getElementById('scan-btn-label');
+const readerDiv = document.getElementById('reader');
+const resultDiv = document.getElementById('result');
+const manualInput = document.getElementById('manual-input');
+const manualBtn = document.getElementById('manual-btn');
+const clearRow = document.getElementById('clear-row');
+const clearLink = document.getElementById('clear-link');
+
+const STORAGE_KEY = 'shelfLookup.productMaster.v1';
+
+function saveToStorage(fileName){
+  try{
+    const payload = {
+      map: productMap,
+      count: itemCount,
+      fileName: fileName || '',
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  }catch(err){
+    loadInfo.textContent += '（保存には失敗しました。次回起動時は再読込が必要です）';
+  }
+}
+
+function formatSavedAt(iso){
+  try{
+    const d = new Date(iso);
+    return d.toLocaleString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  }catch(e){ return ''; }
+}
+
+function loadFromStorage(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw) return false;
+  try{
+    const payload = JSON.parse(raw);
+    if(!payload.map) return false;
+    productMap = payload.map;
+    itemCount = payload.count || Object.keys(productMap).length;
+    statusPill.textContent = `${itemCount}件 読込済`;
+    statusPill.classList.add('loaded');
+    const when = formatSavedAt(payload.savedAt);
+    loadInfo.textContent = `前回保存したデータを使用中${payload.fileName ? '（' + payload.fileName + '）' : ''}${when ? ' — ' + when : ''}`;
+    scanBtn.disabled = false;
+    clearRow.style.display = 'block';
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+clearLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  localStorage.removeItem(STORAGE_KEY);
+  productMap = {};
+  itemCount = 0;
+  statusPill.textContent = '未読込';
+  statusPill.classList.remove('loaded');
+  loadInfo.textContent = 'JANコードと棚番号の列を含むエクセルを選んでください';
+  scanBtn.disabled = true;
+  clearRow.style.display = 'none';
+});
+
+loadFromStorage();
+
+function normalizeJan(v){
+  if(v === null || v === undefined) return '';
+  let s = String(v).trim();
+  if(/^-?\d+(\.\d+)?(e\+?\d+)?$/i.test(s)){
+    const n = Number(s);
+    if(!isNaN(n)) s = String(Math.round(n));
+  }
+  return s.replace(/\s/g,'');
+}
+
+function findKey(row, patterns){
+  const keys = Object.keys(row);
+  for(const p of patterns){
+    const hit = keys.find(k => k.replace(/\s/g,'').includes(p));
+    if(hit) return hit;
+  }
+  return null;
+}
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  loadInfo.textContent = '読み込み中…';
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if(rows.length === 0){
+        loadInfo.textContent = 'データ行が見つかりませんでした（見出しだけのファイルの可能性があります）';
+        return;
+      }
+      const janKey = findKey(rows[0], ['ＪＡＮコード','JANコード','JAN','ジャンコード']);
+      const shelfKey = findKey(rows[0], ['棚番１','棚番号','棚番']);
+      const nameKey = findKey(rows[0], ['商品名']);
+
+      if(!janKey || !shelfKey){
+        loadInfo.textContent = 'JANコード列または棚番列が見つかりませんでした。列名をご確認ください。';
+        return;
+      }
+
+      productMap = {};
+      itemCount = 0;
+      for(const row of rows){
+        const jan = normalizeJan(row[janKey]);
+        if(!jan) continue;
+        const shelf = String(row[shelfKey] ?? '').trim();
+        const name = nameKey ? String(row[nameKey] ?? '').trim() : '';
+        productMap[jan] = {shelf: shelf || '(棚番未登録)', name};
+        itemCount++;
+      }
+
+      statusPill.textContent = `${itemCount}件 読込済`;
+      statusPill.classList.add('loaded');
+      loadInfo.textContent = `「${janKey}」と「${shelfKey}」の列を使用しています（保存しました）`;
+      scanBtn.disabled = false;
+      clearRow.style.display = 'block';
+      saveToStorage(file.name);
+    }catch(err){
+      loadInfo.textContent = '読み込みに失敗しました: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function showResult(jan){
+  const hit = productMap[jan];
+  if(hit){
+    resultDiv.classList.remove('notfound');
+    resultDiv.classList.add('found');
+    resultDiv.innerHTML = `
+      <div class="shelf-label">shelf no.</div>
+      <div class="shelf">${escapeHtml(hit.shelf)}</div>
+      <div class="name">${escapeHtml(hit.name)}</div>
+      <div class="jan">JAN ${escapeHtml(jan)}</div>
+    `;
+  }else{
+    resultDiv.classList.remove('found');
+    resultDiv.classList.add('notfound');
+    resultDiv.innerHTML = `
+      <div class="shelf-label">not found</div>
+      <div class="shelf">見つかりません</div>
+      <div class="jan">JAN ${escapeHtml(jan)}</div>
+    `;
+  }
+  if(navigator.vibrate) navigator.vibrate(60);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+manualBtn.addEventListener('click', () => {
+  const v = normalizeJan(manualInput.value);
+  if(v) showResult(v);
+});
+manualInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ manualBtn.click(); }
+});
+
+scanBtn.addEventListener('click', async () => {
+  if(scanning){
+    await stopScan();
+    return;
+  }
+  readerDiv.style.display = 'block';
+  scanBtnLabel.textContent = 'スキャンを止める';
+  scanBtn.classList.add('scanning');
+  scanning = true;
+
+  html5QrCode = new Html5Qrcode("reader");
+  const config = { fps: 10, qrbox: { width: 260, height: 140 } };
+  try{
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        const jan = normalizeJan(decodedText);
+        showResult(jan);
+      },
+      () => {}
+    );
+  }catch(err){
+    loadInfo.textContent = '';
+    resultDiv.classList.remove('found');
+    resultDiv.innerHTML = `<div class="placeholder">カメラを起動できませんでした: ${escapeHtml(err.message || err)}</div>`;
+    await stopScan();
+  }
+});
+
+async function stopScan(){
+  scanning = false;
+  scanBtnLabel.textContent = 'カメラでバーコードをスキャン';
+  scanBtn.classList.remove('scanning');
+  readerDiv.style.display = 'none';
+  if(html5QrCode){
+    try{ await html5QrCode.stop(); html5QrCode.clear(); }catch(e){}
+    html5QrCode = null;
+  }
+}
+</script>
+</body>
+</html>
