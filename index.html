@@ -270,6 +270,18 @@
     color:var(--text);
     line-height:1.1;
   }
+  .code{
+    margin-top:8px;
+    font-family:var(--font-mono);
+    font-size:24px;
+    font-weight:700;
+    letter-spacing:0.03em;
+    color:var(--accent);
+    background:var(--accent-soft);
+    display:inline-block;
+    padding:4px 14px;
+    border-radius:8px;
+  }
   .name{
     margin-top:10px;
     font-size:14.5px;
@@ -571,9 +583,9 @@ function showResult(jan){
     resultDiv.innerHTML = `
       <div class="shelf-label">shelf no.</div>
       <div class="shelf">${escapeHtml(hit.shelf)}</div>
+      ${hit.code ? `<div class="code">商品コード ${escapeHtml(hit.code)}</div>` : ''}
       <div class="name">${escapeHtml(hit.name)}</div>
-      <div class="jan">JAN ${escapeHtml(jan)}${hit.code ? ' ・ 商品コード ' + escapeHtml(hit.code) : ''}</div>
-      <div class="jan">${timeStr}</div>
+      <div class="jan">JAN ${escapeHtml(jan)} ・ ${timeStr}</div>
     `;
   }else{
     resultDiv.classList.remove('found');
