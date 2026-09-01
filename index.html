@@ -331,9 +331,12 @@
     <span id="status-pill">未読込</span>
   </header>
 
-  <div class="card">
+  <div style="text-align:right;margin-bottom:10px;">
+    <a href="#" id="toggle-master-link" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);text-decoration:underline;">商品マスタを個別に読み込む場合はこちら</a>
+  </div>
+
+  <div class="card" id="master-card" style="display:none;">
     <div class="card-head">
-      <span class="step-num">1</span>
       <h2>商品マスタを読み込む</h2>
     </div>
     <label class="file-btn" for="file-input">
@@ -352,7 +355,7 @@
 
   <div class="card">
     <div class="card-head">
-      <span class="step-num">2</span>
+      <span class="step-num">1</span>
       <h2>スキャンして探す</h2>
     </div>
     <button id="scan-btn" disabled>
@@ -374,13 +377,13 @@
 
   <div class="card">
     <div class="card-head">
-      <span class="step-num">3</span>
+      <span class="step-num">2</span>
       <h2>結果</h2>
     </div>
     <div id="result" class="tag"><div class="placeholder">スキャンまたは入力すると、ここに棚番号が表示されます</div></div>
   </div>
 
-  <footer>商品マスタはこの端末のブラウザ上でのみ処理されます</footer>
+  <footer>商品マスタはこの端末のブラウザ上でのみ処理されます<br>スキャン結果はGoogleスプレッドシートにも自動送信されます</footer>
 </div>
 
 <script>
@@ -390,6 +393,23 @@ const EMBEDDED_GENERATED_AT = '2026-08-23';
 </script>
 <script>
 let productMap = {}; // jan(string) -> {shelf, name, code}
+
+// スキャン結果をGoogleスプレッドシートに自動で書き込むためのウェブアプリURL
+const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxZKI6l6CsjcTwTaD8fnm9V58x3FTurA8AmHzMwjfUxNaKzLccUvFsejWLIufUw27LP/exec';
+
+function sendToSheet(record){
+  if(!GAS_WEBHOOK_URL) return;
+  try{
+    fetch(GAS_WEBHOOK_URL, {
+      method: 'POST',
+      mode: 'no-cors', // レスポンスは受け取れないが、送信自体はできる
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(record)
+    });
+  }catch(err){
+    // 送信に失敗しても、手元のスキャン動作自体には影響させない
+  }
+}
 let codeToJan = {}; // 商品コード(string) -> jan
 let itemCount = 0;
 let scanning = false;
@@ -414,6 +434,15 @@ const manualInput = document.getElementById('manual-input');
 const manualBtn = document.getElementById('manual-btn');
 const clearRow = document.getElementById('clear-row');
 const clearLink = document.getElementById('clear-link');
+const masterCard = document.getElementById('master-card');
+const toggleMasterLink = document.getElementById('toggle-master-link');
+
+toggleMasterLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  const isHidden = masterCard.style.display === 'none';
+  masterCard.style.display = isHidden ? 'block' : 'none';
+  toggleMasterLink.textContent = isHidden ? '商品マスタの読み込みを閉じる' : '商品マスタを個別に読み込む場合はこちら';
+});
 
 const STORAGE_KEY = 'shelfLookup.productMaster.v1';
 
@@ -489,7 +518,10 @@ clearLink.addEventListener('click', (e) => {
 });
 
 if(!loadFromStorage()){
-  loadEmbedded();
+  if(!loadEmbedded()){
+    masterCard.style.display = 'block';
+    toggleMasterLink.textContent = '商品マスタの読み込みを閉じる';
+  }
 }
 
 function normalizeJan(v){
@@ -587,6 +619,13 @@ function showResult(jan){
       <div class="name">${escapeHtml(hit.name)}</div>
       <div class="jan">JAN ${escapeHtml(jan)} ・ ${timeStr}</div>
     `;
+    sendToSheet({
+      time: new Date().toISOString(),
+      jan: jan,
+      code: hit.code || '',
+      name: hit.name || '',
+      shelf: hit.shelf || ''
+    });
   }else{
     resultDiv.classList.remove('found');
     resultDiv.classList.add('notfound');
